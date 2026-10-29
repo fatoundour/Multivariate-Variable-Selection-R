@@ -1,0 +1,758 @@
+---
+title: "Protéome (FH) — Température × Stade d’imbibition"
+author: "Adam Aabadli, Fatoumata Ndour, Myriam Abouda"
+execute: 
+  eval: true
+  echo: false
+  collapse: false
+  code-fold: false
+format:
+  html:
+    toc: true
+    toc-location: left
+    number-sections: true
+    code-fold: true
+    theme: cosmo
+    highlight: tango
+---
+
+<!-- Custom CSS styling for a beautiful background and stylish titles -->
+
+```{=html}
+<style>
+/* Global background styling: a subtle gradient for the whole page */
+body {
+  font-family: 'Open Sans', sans-serif;
+  color: #333339;
+}
+
+/* Style for the main report title (H1) */
+h1 {
+  color: #573636;
+  font-family: 'Playfair Display', serif;
+  text-align: center;
+  font-size: 3em;
+  text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+  margin: 20px 0;
+  background: linear-gradient(45deg, #ff9a9e, #fad0c4);
+  padding: 20px;
+  border-radius: 10px;
+  border: 2px solid #ffffff;
+}
+
+/* Style for secondary headings (H2, H3, H4) */
+h2, h3, h4 {
+  color: #2c3e50;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-weight: bold;
+  background: #ffffff;
+  padding: 10px;
+  border-left: 5px solid #ff9a9e;
+  margin: 20px 0 10px;
+  border-radius: 5px;
+}
+
+/* Paragraph styling for better readability */
+p {
+  line-height: 1.6;
+  margin-bottom: 1em;
+}
+
+/* Styling for code blocks and inline code */
+pre, code {
+  font-family: 'Courier New', monospace;
+  background-color: #f4f4f4;
+  padding: 10px;
+  border-radius: 5px;
+}
+</style>
+```
+
+```{r}
+# Options knitr
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center")
+```
+## Préambule
+
+Ce document reprend les données **protéome FH (Projet #4)** fournies par l’enseignante, en les situant dans le cadre du cours : **modèle linéaire multivarié**
+$$
+Y = X B + E,
+$$
+prise en compte de la covariance
+$$
+\Sigma \quad (\text{dépendances entre protéines}),
+$$
+**blanchiment** et **sélection de variables par stabilité** (*package* `MultiVarSel`).  
+Objectif : montrer que la méthode est comprise et maîtrisée de bout en bout.
+
+### Objectif de l’analyse
+
+- Modéliser l’effet de **Température** $\,\in\{\text{Low},\text{ Medium},\text{ Elevated}\}$, de **Stade** $\,\in\{\text{DS},\text{ EI},\text{ LI}\}$ et de **leur interaction** sur l’expression de $q$ protéines.
+- Tenir compte des **corrélations** entre protéines via une covariance $\Sigma \neq I_q$.
+- **Blanchir** (multiplication par $\Sigma^{-1/2}$) pour travailler avec une **erreur sphérique**, condition nécessaire à une pénalisation efficace.
+- **Sélectionner** de façon **stable** les effets/protéines pertinents, puis **ré-estimer sans biais** et **interpréter**.
+
+### Cadre mathématique
+
+- $Y \in \mathbb{R}^{n \times q}$ : réponses (colonnes = protéines).  
+- $X \in \mathbb{R}^{n \times p}$ : design cell-means avec
+group = interaction(Temperature, Stade) puis X = model.matrix(~0 + group, …)
+(9 colonnes, une par combinaison Temp×Stade).
+- Modèle
+  $$
+  Y = X B + E, \qquad E_{i\cdot} \stackrel{\text{i.i.d}}{\sim} \mathcal{N}(0,\Sigma), \quad \Sigma \in \mathbb{R}^{q \times q}.
+  $$
+- Vectorisation
+  $$
+  \operatorname{vec}(Y)=(I_q\!\otimes\!X)\,\operatorname{vec}(B) + \operatorname{vec}(E), \qquad
+  \mathrm{Cov}\!\big(\operatorname{vec}(E)\big)=\Sigma \otimes I_n.
+  $$
+
+### Pourquoi blanchir ?
+
+Quand $\Sigma \neq I_q$, les colonnes de $Y$ sont **corrélées**, ce qui **biaise** les critères de sélection. On transforme :
+$$
+Y^\star = Y\,\Sigma^{-1/2}, \qquad
+B^\star = B\,\Sigma^{1/2}, \qquad
+E^\star = E\,\Sigma^{-1/2},
+$$
+d’où
+$$
+Y^\star = X B^\star + E^\star
+\quad \text{avec} \quad
+\mathrm{Cov}\!\big(\operatorname{vec}(E^\star)\big)=I_{nq}.
+$$
+On applique alors la **sélection** sur un problème **bien conditionné**, puis on **revient à l’échelle d’origine**.
+
+### Choix et test du blanchiment (*MultiVarSel*)
+
+1. **OLS colonne-par-colonne** $\Rightarrow$ résidus
+   $$
+   R = Y - X \hat B^{\text{OLS}}.
+   $$
+2. **Test de blancheur**  
+   `whitening_test(residuals = R)`  → p-value globale “white noise”.
+3. **Choix de structure**  
+   `whitening_choice(residuals = R, typeDeps = c("AR1","ARMA","nonparam","no_whitening"), pAR = 1, qMA = 0)`  
+   Compare **AR1 / ARMA / nonparam / no_whitening**, décision + p-values, renvoie `best`.
+4. **Blanchiment**  
+   `whitening(residuals = R, typeDep = best, pAR = 1, qMA = 0)`  → produit $\widehat{\Sigma^{-1/2}}$ (objet `S_inv_12`).
+5. **Contrôle visuel** : corrélations résiduelles **avant/après** blanchiment (doivent se rapprocher de $0$ après).
+
+**Lecture rapide :**
+- *AR1* : corrélations décroissantes avec le lag (Toeplitz bandée).  
+- *ARMA* : ACF théorique via `ARMAacf` $\Rightarrow$ Toeplitz $\Rightarrow$ Cholesky.  
+- *nonparam* : ACF empirique moyenne par colonne $\Rightarrow$ Toeplitz $\Rightarrow$ Cholesky.  
+- *no_whitening* : témoin ($I_q$).
+
+### Sélection stable (stability selection)
+
+Sur le modèle blanchi $Y^\star = X B^\star + E^\star$, on évalue la **stabilité** des coefficients sous **sous-échantillonnage répété** :
+
+- **Fonction** : `variable_selection(Y, X, S_inv_12, nb_repli = ..., parallel = ..., nb.cores = ...)`.
+- **Sortie** : un tableau `Freqs` avec : `Names_of_Y` (protéine), `Names_of_X` (contraste Temp/Stade/Interaction), `frequency` (fréquence de sélection).
+- **Seuil** : on retient les couples (protéine, effet) avec `frequency ≥ 0.93` (compromis robustesse/parcimonie cohérent avec l’exemple du cours).
+
+
+### Ré-estimation sans biais et retour à l’échelle
+
+- Refit OLS restreint au support sélectionné (par protéine) dans l’espace blanchi :
+  
+  $$\hat B^{\star}_{\text{sel}} \;=\; \arg\min_{B^\star}\;\|Y^\star - X B^\star\|_{F}^{2}\quad \text{sous}\;\;\mathrm{supp}(B^\star)\subseteq S.$$
+
+- Retour à l’échelle d’origine : 
+  
+  $$\hat B \;=\; \hat B^{\star}_{\text{sel}}\,\hat\Sigma^{1/2},$$
+  
+  avec 
+  
+  $$\hat\Sigma^{1/2} \;=\; \big(\widehat{\Sigma^{-1/2}}\big)^{-1}.$$
+
+- Intérêt : corriger le biais du Lasso et obtenir des effets interprétables (signes, tailles, contrastes).
+
+### Diagnostics et livrables
+
+- Corrélations résiduelles avant/après blanchiment (boxplots) : valider le blanchiment.
+- Courbe de stabilité (fréquence vs rang) : justifier le seuil 0.93.
+- Heatmap des protéines sélectionnées (annotation Temp × Stade).
+- Boxplots par groupe (Temp × Stade) pour un top de protéines.
+- Table finale : protéine × (Temp / Stade / interaction) avec signe et taille d’effet
+
+```{r}
+#| label: préinst
+#| appendix: true
+#| warning: false
+
+rm(list=ls())
+setwd("~/Documents/QSD/Données + Package-20251017")
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(janitor)
+  library(Matrix)
+  library(glmnet)
+  library(reshape)    # for melt()
+  library(pheatmap)
+})
+
+has_MultiVarSel <- requireNamespace("MultiVarSel", quietly = TRUE)
+has_BlockCov    <- requireNamespace("BlockCov", quietly = TRUE)
+```
+
+## Nos données
+
+### Lecture brute
+
+```{r}
+#| label: extraction
+#| appendix: true
+#| warning: false
+
+## --- Lecture comme avant ---
+DATA_IN <- "Table_proteome_FH_all.csv"
+
+read_try <- function(path) {
+  tryCatch(read.csv(path, check.names = FALSE),
+           error = function(e1) tryCatch(read.csv2(path, check.names = FALSE),
+           error = function(e2) read.delim(path, check.names = FALSE)))
+}
+df_raw <- read_try(DATA_IN) %>% janitor::clean_names()
+
+## ---les "données pures" ---
+cat("Dimensions :", nrow(df_raw), "lignes ×", ncol(df_raw), "colonnes\n")
+
+# Type colonne
+type_tbl <- tibble::tibble(
+  col = names(df_raw),
+  type = vapply(df_raw, function(x) class(x)[1], character(1)),
+  na   = vapply(df_raw, function(x) sum(is.na(x)), integer(1))
+) |>
+  dplyr::mutate(na_pct = round(100 * na / nrow(df_raw), 2))
+
+cat("\n— Répartition des types de colonnes —\n")
+print(type_tbl |>
+        dplyr::count(type, name = "n_cols") |>
+        dplyr::arrange(dplyr::desc(n_cols)))
+
+
+cat("\n— Aperçu des 7 premières colonnes (head) —\n")
+print(utils::head(df_raw[, 1:min(7, ncol(df_raw)), drop = FALSE]))
+
+```
+
+Comme on peut voir les données “protéome FH” se présentent comme une table avec deux facteurs expérimentaux — Température (Low/Medium/Elevated) et Stade d’imbibition (DS/EI/LI) — et un large bloc de colonnes numériques correspondant aux protéines (une colonne ≈ une protéine). Côté “culture”: FH signifie freshly harvested (graines fraîchement récoltées) et les stades DS→EI→LI couvrent la réhydratation puis la mise en route métabolique ; la température module ces trajectoires (stress, mobilisation des réserves, respiration). Concrètement, on confirmera l’équilibre des groupes, on appliquera un log-transform log1p sur les intensités protéiques, puis un centrage-réduction colonne par colonne (scale), puis on passera au modèle multivarié avec blanchiment et sélection stable pour isoler les effets robustes (principaux et interaction).
+
+Les données brutes se présentent en petit-n/grand-q : 27 lignes × 499 colonnes, dont 494 numériques (protéines) et 5 méta (4 character, 1 integer). Les méta colonnes visibles sont sample, group, rep (entier), temperature (Low/Medium/Elevated) et imbibition (DS/EI/LI) ; group concatène bien les deux facteurs (ex. Elevated_LI). L’aperçu montre des intensités protéomiques autour de 8–9 (ex. p_at1g0190). On confirmera l’équilibre des groupes puis on poursuivra avec centrage-réduction, modèle multivarié (Y = X B + E), blanchiment et sélection stable des effets...
+
+### Détection des méta-données (Température & Stade)
+
+Le fichier FH doit contenir **Température** (Low/Medium/Elevated) et **Stade** (DS/EI/LI). On résout souplement les noms de colonnes usuels.
+C'est pourquoi le bloc ci dessous prépare les données pour l’analyse :
+
+1) renomme `temperature` → `Temperature` et `imbibition` → `Stade`, et les convertit en facteurs ordonnés *(Low < Medium < Elevated ; DS < EI < LI)* afin d’obtenir un design cohérent (p. ex. `model.matrix(~ 0 + Temperature*Stade)`).
+
+2) isole les colonnes protéiques (toutes les numériques hors méta), et construit \(Y\) (\(n \times q\)) + méta (*Temperature*, *Stade*).
+
+3) affiche \(n\) et \(q\) : dimensions de la matrice protéomique prêtent pour ACP/whitening/modèle.
+
+```{r}
+#| label: meta
+#| appendix: true
+#| warning: false
+# ---- Construction simple de meta + Y (n, q) ----
+# Colonnes connues : sample, group, rep, temperature, imbibition, puis protéines (numériques)
+
+df <- df_raw %>%
+  dplyr::rename(Temperature = temperature,
+                Stade       = imbibition) %>%
+  dplyr::mutate(
+    Temperature = factor(Temperature, levels = c("Low","Medium","Elevated"), ordered = TRUE),
+    Stade       = factor(Stade,       levels = c("DS","EI","LI"),           ordered = TRUE)
+  )
+
+# Protéines = colonnes numériques hors méta (rep peut être numérique)
+meta_cols <- c("sample","group","rep","Temperature","Stade")
+protein_cols <- sapply(df, is.numeric)
+protein_cols[colnames(df) %in% meta_cols] <- FALSE
+
+stopifnot(any(protein_cols))
+Y    <- as.matrix(df[, protein_cols, drop = FALSE]) 
+# après avoir défini Y brut (colonnes protéiques)
+Y_log <- log1p(Y)
+Y     <- scale(Y_log)
+
+meta <- dplyr::select(df, Temperature, Stade)
+
+n <- nrow(Y); q <- ncol(Y)
+```
+
+### Analyse exploratoire
+
+Avant d’appliquer le modèle multivarié avec blanchiment et sélection stable, on fait une **EDA légère** pour **sécuriser** la suite et **orienter** nos choix.
+
+- **PCA (indispensable)** : projette le grand nombre de protéines sur 2–3 axes pour voir si les groupes (Temp × Stade) se séparent, repère des *outliers* ou un *batch*, et montre si la variance est dominée par quelques directions (ce qui motive le passage par le blanchiment et confirme l’intérêt d’un modèle multivarié).
+- **QC par échantillon (médiane/IQR)** : vérifie la **qualité** et l’**équilibre** des groupes ; permet de décider si un échantillon doit être **investigué** (ou, à minima, comment le commenter).
+- **Heatmap des protéines les plus variables** : visualise rapidement les **motifs de co-variation** et leur alignement avec Temp × Stade, sans prétendre sélectionner — c’est un **diagnostic visuel** qui aide à raconter les résultats et à anticiper les **interactions**.
+
+**Ce que ça nous apporte pour la suite :**
+
+- Confirmer qu’on peut travailler sur $Y$ **centré-réduit** (et décider si un *log* est utile).
+- Vérifier que la **structure de corrélations** est bien présente $\Rightarrow$ **justifie le blanchiment** (estimation de $\Sigma^{-1/2}$).
+- **Valider le design** (Temp, Stade, interaction) et **ajuster** si un groupe est très déséquilibré.
+- **Détecter/justifier** d’éventuelles **exclusions** ou **sensibilités** (analyses avec/sans outlier).
+
+**En bref :** PCA + QC + heatmap = **filet de sécurité** et **boussole** pour que l’étape de blanchiment et la **sélection stable** soient crédibles, interprétables et propres.
+
+```{r}
+#| label: eda
+#| appendix: true
+#| warning: false
+
+#EDA minimale : PCA + QC + Heatmap top-variance
+
+# 0) Prépas
+stopifnot(exists("Y"), exists("meta"))
+meta$group <- interaction(meta$Temperature, meta$Stade, sep = "_", drop = TRUE)
+
+# Y est déjà log-transformée + centrée-réduite
+Y_sc <- Y
+if (is.null(rownames(Y_sc))) rownames(Y_sc) <- paste0("s", seq_len(nrow(Y_sc)))
+
+# 1) PCA (scree + plan PC1-PC2)
+pca <- prcomp(Y_sc, center = FALSE, scale. = FALSE)
+ve  <- (pca$sdev^2) / sum(pca$sdev^2)
+
+# Scree plot
+plot(ve, type = "b", pch = 16, xlab = "Composante", ylab = "Part de variance",
+     main = "ACP — variance expliquée")
+
+# Plan PC1–PC2
+scores <- data.frame(PC1 = pca$x[,1], PC2 = pca$x[,2],
+                     Temperature = meta$Temperature, Stade = meta$Stade)
+plot(scores$PC1, scores$PC2,
+     col = as.integer(scores$Temperature),
+     pch = as.integer(scores$Stade),
+     xlab = "PC1", ylab = "PC2", main = "ACP — plan (PC1, PC2)")
+legend("topright", inset = 0.02,
+       legend = levels(scores$Temperature), col = seq_along(levels(scores$Temperature)),
+       pch = 15, title = "Température", cex = 0.8)
+legend("bottomright", inset = 0.02,
+       legend = levels(scores$Stade), pch = seq_along(levels(scores$Stade)),
+       title = "Stade", cex = 0.8)
+
+# 2) QC par échantillon (médiane des intensités centrées-réduites)
+med_sample <- apply(Y_sc, 1, median, na.rm = TRUE)
+boxplot(med_sample ~ meta$group, las = 2,
+        ylab = "Médiane (Y centrée-réduite)", xlab = "Groupe (Temp × Stade)",
+        main = "QC — distribution des médianes par groupe")
+
+# 3) Heatmap des top-variance (ex: 100 protéines les plus variables)
+top_k <- min(100, ncol(Y_sc))
+vars  <- apply(Y_sc, 2, var, na.rm = TRUE)
+top_idx <- order(vars, decreasing = TRUE)[1:top_k]
+Y_top <- Y_sc[, top_idx, drop = FALSE]
+
+ann_col <- data.frame(Temperature = meta$Temperature, Stade = meta$Stade)
+rownames(ann_col) <- rownames(Y_top)  # annotation des lignes (échantillons)
+
+pheatmap::pheatmap(Y_top,
+                   annotation_row = ann_col,
+                   show_rownames = FALSE, show_colnames = FALSE,
+                   main = paste0("Heatmap — top ", top_k, " protéines (variance)"))
+
+```
+
+- **Heatmap (top-100 variance)** — Les échantillons (lignes) se regroupent surtout par **Température** (barre d’annotation), avec une séparation secondaire par **Stade**. Des blocs de **co-variation** protéique apparaissent → forte **corrélation** entre protéines ⇒ **blanchiment** pertinent.
+- **QC (médiane par groupe)** — Décalages modérés entre groupes ; **Low_LI** montre la **plus grande dispersion** (hétérogénéité à garder en tête pour une analyse de sensibilité). Pas d’outlier “grossier”.
+- **ACP (PC1–PC2)** — PC1 suit clairement le **gradient de Température** (Low à gauche, Elevated à droite). PC2 ordonne en partie le **Stade** (DS/EI/LI). Cela **confirme le design** et suggère une **interaction Temp × Stade** plausible.
+- **Scree plot** — Épaule après **PC2–PC3** (~50%+ de variance cumulée), le reste est diffus. Suffisant pour la **visualisation**, mais les effets se répartissent sur plusieurs directions → la **sélection multivariée** se justifie.
+MD
+
+## Méthode
+
+### Modèle linéaire & résidus
+
+On calcule les **résidus** de la régression multivariée (Y \~ X) (OLS colonne par colonne via `lm.fit`).
+
+```{r}
+#| label: modele
+#| appendix: true
+#| warning: false
+## -- Design cell-means : Temperature:Stade --
+meta$group <- interaction(meta$Temperature, meta$Stade, sep = "_", drop = TRUE)
+
+# 9 colonnes, une par combinaison (pas d'intercept)
+X <- model.matrix(~ 0 + group, data = meta)
+
+## -- OLS & résidus avec ce design --
+fit      <- lm.fit(X, Y)
+coef_hat <- fit$coefficients          # (9 x q)
+R        <- Y - X %*% coef_hat
+
+```
+
+Le **modèle cell-means** `~ 0 + Temperature:Stade` (ou `group = Temperature:Stade` puis `~ 0 + group`) ne contient que les **9 indicatrices** des combinaisons. Il est **plein rang**, **indépendant des contrastes**, et chaque coefficient est directement la **moyenne du groupe** — parfait pour notre pipeline (résidus → blanchiment → sélection).
+
+### Estimation de Σ et blanchiment
+
+
+```{r}
+#| label: whitening
+#| appendix: true
+#| warning: false
+
+stopifnot(exists("R"), is.matrix(R), exists("Y"))
+
+suppressPackageStartupMessages(library(MultiVarSel))
+
+## 1) Test de blancheur sur les résidus bruts
+pval_white <- whitening_test(residuals = R)
+cat("whitening_test p-value (résidus bruts) =", signif(pval_white, 3), "\n")
+
+## 2) Choix de la structure de Σ via whitening_choice
+wc <- whitening_choice(
+  residuals = R,
+  typeDeps  = c("AR1","ARMA","nonparam","no_whitening"),
+  pAR = 1, qMA = 0
+)
+print(wc)
+
+# On garde les modèles déclarés "WHITE NOISE" ; si aucun, on prend la plus grande p-value
+idx_white <- which(wc$Decision == "WHITE NOISE")
+if (length(idx_white) == 0) idx_white <- seq_len(nrow(wc))
+
+best_type <- rownames(wc)[ idx_white[ which.max(wc$Pvalue[idx_white]) ] ]
+cat("Structure retenue pour Σ :", best_type, "\n")
+
+## 3) Matrice racine inverse estimée  Σ^{-1/2}
+S_inv_12 <- whitening(
+  residuals = R,
+  typeDep  = best_type,
+  pAR = 1, qMA = 0
+)
+# whitening() renvoie directement Σ^{-1/2} (objet Matrix ou matrice)
+
+# On force en matrices de base pour la suite
+R_mat       <- as.matrix(R)
+S_inv_12mat <- as.matrix(S_inv_12)
+
+## 4) Résidus blanchis + petit diagnostic
+W <- R_mat %*% S_inv_12mat   # résidus blanchis, pour la sélection stable
+
+cor_b <- stats::cor(R_mat,       use = "pairwise.complete.obs")
+cor_a <- stats::cor(W,           use = "pairwise.complete.obs")
+
+med_b <- median(abs(cor_b[upper.tri(cor_b)]), na.rm = TRUE)
+med_a <- median(abs(cor_a[upper.tri(cor_a)]), na.rm = TRUE)
+
+cat("median |cor| (avant -> après) :", round(med_b, 3), "->", round(med_a, 3), "\n")
+
+
+```
+
+- `whitening_test p-value (résidus bruts) = 0.739`
+  → le test **ne voit pas de violation flagrante** de l’hypothèse “white noise” sur les résidus $R$.
+  En gros : *« avec 27 échantillons et 494 protéines, je n’ai pas assez de signal pour dire que $\Sigma \neq I$ »*.
+
+- `whitening_choice` :
+  AR1, ARMA, `nonparam`, et `no_whitening` sont tous `WHITE NOISE` avec des p-values élevées, et `nonparam` a juste la plus grande (0.996).
+  → ça veut dire que **toutes** les structures candidates (y compris **sans blanchiment**) donnent des résidus qui ont l’air “blancs” pour le test.
+  Le choix `nonparam` est donc plus un **tie-breaker** qu’un besoin absolu de blanchir.
+
+- `median |cor| (avant -> après) : 0.228 -> 0.219`
+  → petite baisse mais **pas spectaculaire**. Donc **il reste de la corrélation**, mais pas assez pour que le test s’excite.
+
+
+
+Dans nos exemples du cours, on a des résidus **très corrélés** (données longitudinales / temps) → `whitening_test` donne des p-values **proches de 0** avant blanchiment, puis **proches de 1** après. Ici :
+
+- les effets **Temp × Stade** expliquent déjà une **grosse partie** de la structure (on l’a vu en ACP : grosses séparations de groupes),
+- après retrait des **moyennes de groupes**, les résidus $R$ **ressemblent surtout à du bruit**,
+- et $n = 27$ est **tout petit** pour tester finement la structure de $\Sigma$ avec ~500 protéines.
+
+
+### Sélection stable des effets
+
+**Idée.** Utiliser la matrice de design $X$, la réponse $Y$ et la racine inverse $\widehat{\Sigma^{-1/2}}$ fournie par `whitening()` pour estimer, par **stability selection**, la fréquence de sélection de chaque coefficient $B_{jk}$ (effet du groupe $j$ sur la protéine $k$).
+
+En appliquant `variable_selection` au modèle blanchi, on obtient pour chaque couple (protéine, effet Temp×Stade) une fréquence de sélection sous sous-échantillonnage répété. La courbe fréquence–rang montre un noyau de coefficients très stables puis une décroissance rapide. En retenant le seuil 0.93, on isole un ensemble parcimonieux de couples prot×effet, qui constituera la base de la ré-estimation sans biais et de l’interprétation biologique (signes des contrastes, effets de Température, de Stade et de leur interaction).
+
+```{r}
+#| label: selection
+#| appendix: true
+#| warning: false
+
+
+set.seed(123)  # reproductible
+rds_file <- "Freqs_FH.rds"
+
+if (file.exists(rds_file)) {
+  # ---> On recharge directement l'objet déjà calculé
+  Freqs <- readRDS(rds_file)
+  cat("Freqs rechargé depuis", rds_file, "\n")
+} else {
+  # ---> Calcul (long) UNE SEULE FOIS
+  Freqs <- MultiVarSel::variable_selection(
+    Y  = Y,
+    X  = X,
+    square_root_inv_hat_Sigma = S_inv_12mat,
+    nb_repli = 5000,
+    parallel = FALSE
+    # nb.cores = 8  # ignoré si parallel = FALSE,
+  )
+  saveRDS(Freqs, rds_file)
+  cat("Freqs calculé et sauvegardé dans", rds_file, "\n")
+}
+
+head(Freqs)
+summary(Freqs$frequency)
+
+```
+
+On fixe maintenant un seuil (comme dans le cours, ~0.93) et on regarde ce qui sort :
+
+```{r}
+#| label: selection-threshold
+#| warning: false
+
+thr <- 0.93
+sel <- subset(Freqs, frequency >= thr)
+sel2 <- sel |>
+  dplyr::transmute(
+    prot   = `Names of the Columns of Y`,          # nom de la protéine
+    group  = `Levels of the qualitative variable`, # nom du groupe Temp×Stade
+    frequency
+  )
+
+cat("Nb de couples (prot, effet) >= ", thr, " : ", nrow(sel), "\n", sep = "")
+
+sel_top <- sel[order(-sel$frequency), ]
+head(sel_top, 20)
+
+```
+
+**Petit graphe fréquence vs rang:**
+
+```{r}
+#| label: selection-plot
+#| fig.width: 6
+#| fig.height: 4
+#| warning: false
+
+ord <- order(-Freqs$frequency)
+plot(Freqs$frequency[ord], type = "h",
+xlab = "Rang (couples prot×effet)",
+ylab = "Fréquence de sélection",
+main = "Stability selection — fréquence vs rang")
+abline(h = thr, col = "red", lty = 2)
+
+```
+Sur le modèle blanchi $(Y, X, \hat\Sigma^{-1/2})$, la stability selection donne une distribution de fréquences élevée : la médiane est autour de 0.75 (1er quartile ≈ 0.58, 3e quartile ≈ 0.87).
+Cela signifie que, sous sous-échantillonnage répété, une grande partie des couples (protéine, groupe Temp×Stade) sont sélectionnés plus d’une fois sur deux.
+
+En fixant un seuil très conservateur thr = 0.93, on obtient :
+
+223 couples (prot, effet) avec frequency ≥ 0.93,
+
+par exemple, pour la protéine p_at1g01900_1, les groupes groupLow_DS, groupMedium_DS, groupElevated_DS, groupLow_EI, etc. présentent des fréquences proches de 1.
+
+La figure “Stability selection — fréquence vs rang” montre un plateau haut de fréquences proches de 1, puis une décroissance progressive en dessous de 0.5 : cela justifie l’utilisation d’un seuil élevé (0.93) pour isoler un noyau d’effets très stables,lLe choix de notre seuil permet donc de retenir un sous-ensemble parcimonieux mais très robuste de couples prot×groupe, comme dans l’exemple métabolome du cours.”
+
+
+### Ré-estimation sans biais (OLS) sur les protéines sélectionnées
+
+On applique maintenant une ré-estimation sans biais : on refait une régression OLS sur les données log-transformées *Ylog*⁡ avec le design cell-means, sans pénalisation ni blanchiment, en ne conservant que les couples (protéine, groupe Temp×Stade) préalablement sélectionnés par stability selection (frequency ≥ 0.93).
+
+```{r}
+#| label: refit-ols
+#| warning: false
+
+
+# 1) Facteur de groupes (mêmes 9 combinaisons Temp×Stade)
+G <- interaction(meta$Temperature, meta$Stade, sep = "_", drop = TRUE)
+
+# 2) OLS sur les données log-transformées (Y_log), sans blanchiment
+B_hat_list <- lapply(seq_len(ncol(Y_log)), function(j){
+  coef(lm(Y_log[, j] ~ 0 + G))
+})
+B_hat <- do.call(cbind, B_hat_list)   # 9 x q
+
+# IMPORTANT : aligner les noms de lignes avec ceux utilisés dans Freqs
+# (groupLow_DS, groupElevated_LI, etc.)
+rownames(B_hat) <- paste0("group", levels(G))
+colnames(B_hat) <- colnames(Y_log)
+
+# 3) Passage au format long : (prot, group, mean_log_intensity)
+B_long <- as.data.frame(B_hat) |>
+  tibble::rownames_to_column("group") |>
+  tidyr::pivot_longer(
+    cols      = -group,
+    names_to  = "prot",
+    values_to = "mean_log_intensity"
+  )
+
+# 4) Jointure avec la sélection stable
+res_sel <- sel2 |>
+  dplyr::left_join(B_long, by = c("prot","group")) |>
+  dplyr::arrange(dplyr::desc(frequency))
+
+head(res_sel, 10)
+
+```
+La ré-estimation OLS sur les données log-transformées met en évidence un noyau restreint de couples (protéine, groupe Temp×Stade) très stables : les fréquences de sélection sont toutes supérieures à 0,99 pour les premières lignes du tableau. Autrement dit, même sous sous-échantillonnage répété, ces effets sont quasiment toujours retenus par la méthode de sélection, ce qui en fait des candidats très robustes.
+
+On observe par ailleurs un profil très marqué en faveur des conditions de température élevée, en particulier au stade LI et, dans une moindre mesure, au stade EI : plusieurs protéines (par ex. `p_at4g04020_1`, `p_at1g34430_1`, `p_at5g20290_1`, `p_at2g33150_1`, `p_at3g56070_1`) sont systématiquement sélectionnées pour les groupes `Elevated_LI` ou `Elevated_EI`, avec des moyennes d’intensité log autour de 2,1–2,3. Sur l’échelle linéaire, une différence de 0,2–0,3 en log correspond à un gain d’environ 20–35 % d’intensité, ce qui suggère une sur-expression nette de ces protéines en conditions chaudes à la fin de l’imbibition.
+
+À l’inverse, seuls quelques couples associés à des conditions plus modérées (par ex. `Low_DS` ou `Medium_LI`) apparaissent dans ce top, et avec des intensités comparables mais moins systématiquement stables. Globalement, la combinaison **Température élevée × stade tardif (LI)** ressort donc comme le principal moteur des différences d’expression protéique, et les protéines listées ici constituent des candidats naturels de “marqueurs” de la réponse tardive au stress thermique dans ce jeu de données FH.
+
+## Visualisations & interprétation
+
+### Résumé quantitatif des couples sélectionnés
+
+```{r}
+#| label: summary-selected
+#| warning: false
+
+stopifnot(exists("res_sel"))
+
+# Nombre de groupes sélectionnés par protéine
+prot_counts <- res_sel |>
+  dplyr::count(prot, name = "n_groups") |>
+  dplyr::arrange(dplyr::desc(n_groups))
+
+head(prot_counts, 10)
+
+# Nombre de protéines sélectionnées par groupe Temp×Stade
+group_counts <- res_sel |>
+  dplyr::count(group, name = "n_prot") |>
+  dplyr::arrange(dplyr::desc(n_prot))
+
+head(group_counts, 9)
+
+```
+En agrégeant par protéine le support sélectionné (seuil de fréquence 0.93), on observe que quelques protéines (par ex. p_at2g22240_1, p_at4g04020_1, p_at1g18500_1) sont sélectionnées dans 3 à 4 groupes Temp×Stade. Cela signifie que ces protéines présentent des variations d’abondance robustes dans plusieurs conditions expérimentales, tout en restant loin d’un patron « omniprésent » (aucune protéine n’est sélectionnée dans les 9 groupes). On obtient donc un ensemble d’effets à la fois forts et spécifiques.
+
+En agrégeant maintenant par groupe Temp×Stade, on compte le nombre de protéines associées à chaque condition (i.e. ayant au moins un effet sélectionné avec fréquence ≥ 0.93). Les groupes Elevated_DS et Elevated_LI concentrent respectivement ~50 et 44 protéines sélectionnées, loin devant les autres groupes. Cela suggère que la combinaison haute température et stades DS/LI induit un remodelage protéomique particulièrement marqué.
+Les groupes Medium_DS et Low_LI viennent ensuite (33 et 24 protéines), tandis que Medium_EI et Medium_LI présentent le plus petit nombre de protéines sélectionnées (9 et 14). On peut interpréter ces résultats comme un effet fort de la température élevée, modulé par le stade d’imbibition : les stades très précoces (DS) et plus tardifs (LI) semblent plus sensibles que EI, en particulier sous Elevated.
+
+### Heatmap des intensités moyennes log pour les couples sélectionnés
+
+```{r}
+#| label: heatmap-selected
+#| warning: false
+#| fig.width: 8
+#| fig.height: 6
+
+# 1) Sélectionner quelques protéines stables
+#    (les 10 les plus fréquemment sélectionnées)
+top_prot <- sel2 |>
+  dplyr::count(prot, sort = TRUE) |>
+  pull(prot)
+
+cat("Protéines retenues pour la heatmap :", paste(top_prot, collapse=", "), "\n")
+
+# 2) Construire la matrice prot × groupe avec les moyennes log-OLS
+H <- res_sel |>
+  dplyr::filter(prot %in% top_prot) |>
+  dplyr::select(prot, group, mean_log_intensity) |>
+  tidyr::pivot_wider(
+    names_from  = group,
+    values_from = mean_log_intensity
+  ) |>
+  tibble::column_to_rownames("prot") |>
+  as.matrix()
+
+# Vérification dimensions
+cat("Dimensions de la matrice pour la heatmap :", 
+    nrow(H), "protéines ×", ncol(H), "groupes\n")
+
+# 3) Heatmap "propre", comme dans le .qmd de la prof
+#    - pas de clustering (évite hclust/NA)
+#    - NA en gris clair
+#    - scale="row" comme elle
+pheatmap::pheatmap(
+  H,
+  scale = "row",
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+  na_col = "grey90",
+  main = "Heatmap — moyennes log (OLS) des protéines stables"
+)
+
+
+```
+pas bien faite à refaire +  interpretation
+
+### Boxplots pour quelques protéines “marqueurs”
+
+```{r}
+#| label: boxplots-top-prot
+#| warning: false
+#| fig.width: 8
+#| fig.height: 6
+
+stopifnot(exists("Y_log"), exists("meta"), exists("res_sel"))
+
+# Top protéines en nombre de groupes sélectionnés
+top_prot <- prot_counts |>
+  dplyr::slice_head(n = 4) |>
+  dplyr::pull(prot)
+
+meta$group <- interaction(meta$Temperature, meta$Stade, sep = "_", drop = TRUE)
+
+Y_top_long <- as.data.frame(Y_log[, top_prot, drop = FALSE]) |>
+  dplyr::mutate(group = meta$group) |>
+  tidyr::pivot_longer(
+    cols      = all_of(top_prot),
+    names_to  = "prot",
+    values_to = "log_intensity"
+  )
+
+ggplot2::ggplot(Y_top_long,
+       ggplot2::aes(x = group, y = log_intensity, fill = group)) +
+  ggplot2::geom_boxplot() +
+  ggplot2::facet_wrap(~ prot, scales = "free_y") +
+  ggplot2::theme_bw() +
+  ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)) +
+  ggplot2::labs(
+    x = "Température × Stade",
+    y = "Intensité log",
+    title = "Distribution des intensités log pour quelques protéines sélectionnées"
+  )
+
+```
+Ces boxplots illustrent concrètement les effets mis en évidence par la stability selection : plusieurs protéines présentent des profils d’abondance très structurés par Température × Stade. Les conditions Elevated_DS et Elevated_LI se distinguent par des intensités log plus élevées pour de nombreuses protéines sélectionnées (p_at1g18500_1, p_at2g22240_1, p_at4g04020_1), tandis que le stade LI sous Low/Medium s’accompagne souvent d’une chute d’expression. Ces patrons cohérents avec les résultats de sélection stable confortent l’idée d’un remodelage protéomique marqué sous température élevée, modulé par le stade d’imbibition.
+
+
+## Conclusion
+
+Dans ce projet, nous avons appliqué la chaîne complète proposée dans le cours **modèle linéaire multivarié + blanchiment + sélection stable** au protéome FH (Température × Stade d’imbibition). L’objectif était double : (i) vérifier que le cadre théorique est bien compris (vectorisation, covariance, blanchiment, stabilité), et (ii) identifier, autant que possible, des couples (protéine, condition Temp×Stade) dont l’effet est stable.
+
+Sur le plan méthodologique, nous avons :
+
+- extrait les intensités protéiques, appliqué une transformation `log1p` puis un centrage-réduction par protéine afin de travailler sur des échelles comparables et de limiter les asymétries ;
+- construit un design **cell-means** avec 9 indicatrices `group = Temperature:Stade`, de sorte que chaque coefficient corresponde directement à la moyenne d’un groupe expérimental ;
+- ajusté le modèle multivarié \(Y = X B + E\) et récupéré les résidus \(R\), utilisés comme point de départ pour l’estimation de \(\Sigma\).
+
+Le **test de blancheur** (`whitening_test`) appliqué aux résidus bruts donne une p-value élevée (~0.74). Autrement dit, avec 27 échantillons et ~500 protéines, on ne détecte pas de violation franche de l’hypothèse de bruit blanc : aucune structure de covariance n’est fortement préférée, et `whitening_choice` classe d’ailleurs AR1, ARMA, `nonparam` et `no_whitening` comme “WHITE NOISE”, avec des p-values toutes élevées. Le choix de la structure `nonparam` fonctionne alors davantage comme un **tie-breaker** que comme une nécessité statistique forte. Après application de `whitening()`, la médiane de \(|\mathrm{cor}|\) entre résidus passe de ~0.23 à ~0.22 : le blanchiment améliore légèrement la sphéricité, mais sans rupture spectaculaire, ce qui est cohérent avec le résultat du test.
+
+Malgré cette incertitude sur \(\Sigma\), nous avons tout de même appliqué la procédure de stability selection sur le modèle blanchi \((Y, X, \Sigma^{-1/2})\), avec un grand nombre de répliques (nb_repli = 5000). La distribution des fréquences de sélection montre un noyau important de couples (protéine, groupe Temp×Stade) fréquemment retenus, puis une décroissance progressive. En fixant un seuil conservateur \(thr = 0{,}93\), on obtient un ensemble de couples prot×effet très stables, qui constitue un sous-ensemble parcimonieux d’effets potentiellement robustes. Ce choix de seuil s’aligne sur l’exemple du cours : on privilégie la robustesse (stabilité élevée sous sous-échantillonnage) au détriment d’une couverture maximale des protéines.
+
+À partir de ces couples stables, nous avons ensuite ré-estimé les moyennes par groupe (OLS sur les intensités log-transformées) et construit une heatmap prot×groupe sur un sous-ensemble de protéines fortement sélectionnées. Cette représentation confirme que les protéines retenues présentent des profils nettement différenciés entre groupes Temp×Stade (patterns de sur- ou sous-expression selon les combinaisons), ce qui soutient l’idée qu’une partie du protéome FH répond de façon structurée aux conditions expérimentales. La heatmap joue ici un rôle essentiellement descriptif : elle illustre la cohérence entre la sélection pénalisée et une lecture plus classique en termes de moyennes par groupe.
+
+Au final, l’analyse est cohérente avec le cadre du cours :
+
+- le modèle est identifiable et bien spécifié grâce au paramétrage cell-means,
+- le rôle de \(\Sigma\) et du blanchiment est discuté à partir du test et des corrélations résiduelles (sans forcer une structure inadéquate),
+- la stability selection est utilisée avec un seuil élevé pour isoler un noyau d’effets très stables,
+- et la ré-estimation OLS sur les protéines sélectionnées permet de revenir à des quantités interprétables (moyennes log par groupe).
+
+Les principales **limites** tiennent au design (petit $n = 27$, grand $q \approx 500$) et au fait que la structure de covariance n’est pas fortement identifiable : il faut donc interpréter les résultats avec prudence, en privilégiant les effets les plus stables plutôt que de sur-interpréter les détails fins. En perspective, on pourrait approfondir l’analyse en :
+- regroupant les protéines par **voies fonctionnelles** ou **familles**,
+- explorant des **seuils de stabilité** alternatifs (par ex. 0.85) pour comparer le compromis **sensibilité/spécificité**,
+- ou en complétant par des **analyses univariées** classiques (ANOVA par protéine) pour confronter les conclusions.
+
+Malgré ces limites, le pipeline mis en place répond aux attentes pédagogiques : il illustre clairement comment **modéliser** $Y = X B + E$ **avec dépendance entre réponses**, **estimer ou tester** $\Sigma$, **blanchir**, **sélectionner** de façon stable, puis **revenir à des effets interprétables** sur le plan biologique.
+
+
+
