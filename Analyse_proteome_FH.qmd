@@ -1,5 +1,5 @@
 ---
-title: "Protéome (FH) — Température × Stade d’imbibition"
+title: "Protéome (FH) - Température × Stade d’imbibition"
 execute: 
   eval: true
   echo: false
