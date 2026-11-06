@@ -1,36 +1,56 @@
-# Multivariate Variable Selection in R — Proteomics (FH)
+# Sélection de variables multivariée en R — Analyse protéomique (FH)
 
-**Academic team project** — Master 2, Université Paris Cité, course *Questions de sciences des données*.
+**Projet académique réalisé en équipe** dans le cadre du Master 2 à l’Université Paris Cité, pour le cours *Questions de sciences des données*.
 
-## Objective
+## Objectif
 
-Study how **temperature** (Low, Medium, Elevated), **seed imbibition stage** (DS, EI, LI) and their combinations relate to protein abundance in freshly harvested seeds (FH). The analysis uses multivariate linear modeling and variable selection to account for dependencies across protein measurements.
+Étudier les associations entre l’abondance des protéines de graines fraîchement récoltées (FH) et deux facteurs expérimentaux : la **température** (Low, Medium, Elevated) et le **stade d’imbibition** (DS, EI, LI).
 
-## Method
+L’approche repose sur une modélisation linéaire multivariée et sur une sélection de variables tenant compte des dépendances entre les mesures protéiques.
 
-- Explore and preprocess proteomics data (log transformation, standardization, PCA and visualizations).
-- Build the multivariate linear model `Y = XB + E` using temperature × stage experimental groups.
-- Investigate residual covariance and whitening using **MultiVarSel**.
-- Apply stability selection to identify protein–condition associations.
-- Re-estimate and interpret selected effects, with heatmaps and boxplots.
+## Méthodologie
 
-## Results
+1. **Exploration et préparation des données** : transformation logarithmique, standardisation, analyse en composantes principales (ACP) et visualisations.
+2. **Modélisation multivariée** : formulation du modèle `Y = XB + E` pour les groupes expérimentaux température × stade d’imbibition.
+3. **Prise en compte des corrélations** : étude de la covariance résiduelle et blanchiment (*whitening*) avec le package R `MultiVarSel`.
+4. **Sélection stable des variables** : identification des associations entre protéines et conditions expérimentales.
+5. **Interprétation** : réestimation des effets sélectionnés et visualisations (cartes de chaleur et boîtes à moustaches).
 
-The original report describes **27 samples** with **494 protein measurements**. With a stability-frequency threshold of **0.93**, the reported analysis retains **223 protein–experimental-condition pairs** (not 223 distinct proteins). The higher-temperature DS and LI groups feature prominently among selected associations. Results are exploratory, given the small sample size.
+## Principaux résultats
 
-## Files
+L’analyse porte sur **27 échantillons** et **494 mesures protéiques**.
 
-- `Analyse_proteome_FH.qmd` — original Quarto source with R code and analysis.
-- `.gitignore` — excludes course-provided data and locally generated result files.
+Avec un seuil de fréquence de sélection de **0,93**, le rapport identifie **223 couples « protéine–condition expérimentale »**. Ce nombre ne correspond donc pas à 223 protéines distinctes.
 
-## Data availability & reproducibility
+Les conditions de température élevée, notamment aux stades DS et LI, figurent parmi celles présentant le plus d’associations sélectionnées.
 
-The dataset `Table_proteome_FH_all.csv` was supplied by the course instructor and **is not redistributed in this public repository**. The cached selection results (`Freqs_FH.rds`) are also omitted pending confirmation that derivative data can be shared. To rerun, obtain the dataset through an authorized source, place it alongside the Quarto file, and review the local paths in the script before rendering. R and packages used in the source, including `MultiVarSel`, are required. **End-to-end reproduction has not been independently verified** for this public version.
+Ces résultats restent **exploratoires**, compte tenu du faible nombre d’échantillons par rapport au nombre de variables. Les associations observées ne démontrent pas de lien de causalité biologique.
 
-## Credits
+## Technologies utilisées
 
-**Team project:** Adam Aabadli, Fatoumata Ndour, Myriam Abouda. The data and course framework were provided by the teaching staff; this repository does not claim authorship of the MultiVarSel package or of the underlying dataset.
+- **R** : analyses statistiques et visualisations.
+- **MultiVarSel** : sélection de variables dans un cadre multivarié.
+- **Quarto** : rédaction du rapport et intégration du code et des résultats.
 
-## Note
+## Contenu du dépôt
 
-For educational and portfolio purposes. Selected associations should not be interpreted as proof of biological causation.
+- `Analyse_proteome_FH.qmd` : fichier Quarto original contenant le code R, la démarche d’analyse et les interprétations.
+- `.gitignore` : exclusion des données pédagogiques et de certains fichiers de résultats locaux.
+
+## Données et reproductibilité
+
+Le fichier `Table_proteome_FH_all.csv` a été **fourni par l’enseignant** dans le cadre du cours. Il n’est pas diffusé dans ce dépôt public, faute d’autorisation explicite de redistribution.
+
+Le fichier de résultats intermédiaires `Freqs_FH.rds` n’est pas non plus publié, dans l’attente d’une vérification des conditions de partage des résultats dérivés.
+
+Pour reproduire l’analyse, il faut disposer du jeu de données par une voie autorisée, installer les packages R nécessaires (dont `MultiVarSel`) et **adapter les chemins locaux** présents dans le fichier Quarto. L’exécution complète de cette version publique n’a pas été vérifiée indépendamment.
+
+## Travail en équipe et crédits
+
+Projet réalisé en équipe par **Adam Aabadli, Fatoumata Ndour et Myriam Abouda**.
+
+Le jeu de données et le cadre pédagogique ont été fournis par l’équipe enseignante. Ce dépôt ne revendique ni la création du package `MultiVarSel` ni celle du jeu de données d’origine.
+
+## Remarque
+
+Ce projet est présenté à des fins pédagogiques et de valorisation des compétences en **statistiques multivariées, sélection de variables et programmation R**.
