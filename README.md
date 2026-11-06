@@ -1,4 +1,4 @@
-# Sélection de variables multivariée en R — Analyse protéomique (FH)
+# Sélection de variables multivariée en R - Analyse protéomique (FH)
 
 **Projet académique réalisé en équipe** dans le cadre du Master 2 à l’Université Paris Cité, pour le cours *Questions de sciences des données*.
 
