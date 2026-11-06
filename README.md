@@ -1,56 +1,34 @@
-# Sélection de variables multivariée en R - Analyse protéomique (FH)
+# Sélection de variables multivariée en R — Analyse protéomique
 
-**Projet académique réalisé en équipe** dans le cadre du Master 2 à l’Université Paris Cité, pour le cours *Questions de sciences des données*.
+Projet réalisé en équipe dans le cadre du Master 2 à l’Université Paris Cité, pour le cours *Questions de sciences des données*.
 
-## Objectif
+## Présentation
 
-Étudier les associations entre l’abondance des protéines de graines fraîchement récoltées (FH) et deux facteurs expérimentaux : la **température** (Low, Medium, Elevated) et le **stade d’imbibition** (DS, EI, LI).
+Ce projet étudie l’influence des conditions expérimentales — **température** et **stade d’imbibition** — sur l’abondance des protéines de graines fraîchement récoltées (FH).
 
-L’approche repose sur une modélisation linéaire multivariée et sur une sélection de variables tenant compte des dépendances entre les mesures protéiques.
+L’objectif est d’identifier les associations les plus pertinentes entre protéines et conditions expérimentales, à l’aide de méthodes de **statistique multivariée** et du package R **MultiVarSel**.
 
-## Méthodologie
+## Démarche
 
-1. **Exploration et préparation des données** : transformation logarithmique, standardisation, analyse en composantes principales (ACP) et visualisations.
-2. **Modélisation multivariée** : formulation du modèle `Y = XB + E` pour les groupes expérimentaux température × stade d’imbibition.
-3. **Prise en compte des corrélations** : étude de la covariance résiduelle et blanchiment (*whitening*) avec le package R `MultiVarSel`.
-4. **Sélection stable des variables** : identification des associations entre protéines et conditions expérimentales.
-5. **Interprétation** : réestimation des effets sélectionnés et visualisations (cartes de chaleur et boîtes à moustaches).
+1. **Exploration des données** : analyse descriptive, transformation logarithmique, standardisation, ACP et visualisations.
+2. **Modélisation** : construction d’un modèle linéaire multivarié `Y = XB + E` pour les combinaisons température × stade d’imbibition.
+3. **Prise en compte des corrélations** : estimation de la structure de covariance résiduelle et blanchiment des données.
+4. **Sélection de variables** : utilisation de `MultiVarSel` et d’une procédure de sélection stable.
+5. **Analyse des résultats** : interprétation des effets retenus et visualisations par cartes de chaleur et boîtes à moustaches.
 
-## Principaux résultats
+## Résultats
 
-L’analyse porte sur **27 échantillons** et **494 mesures protéiques**.
+Le jeu de données comprend **27 échantillons** et **494 variables protéiques**.
 
-Avec un seuil de fréquence de sélection de **0,93**, le rapport identifie **223 couples « protéine–condition expérimentale »**. Ce nombre ne correspond donc pas à 223 protéines distinctes.
+Avec un seuil de fréquence de sélection de **0,93**, l’analyse retient **223 associations protéine–condition expérimentale**. Les conditions de température élevée, notamment aux stades DS et LI, ressortent parmi les groupes présentant le plus d’associations sélectionnées.
 
-Les conditions de température élevée, notamment aux stades DS et LI, figurent parmi celles présentant le plus d’associations sélectionnées.
+## Technologies
 
-Ces résultats restent **exploratoires**, compte tenu du faible nombre d’échantillons par rapport au nombre de variables. Les associations observées ne démontrent pas de lien de causalité biologique.
+**R · MultiVarSel · Quarto · ACP · Modélisation linéaire multivariée · Sélection de variables**
 
-## Technologies utilisées
+## Fichiers du projet
 
-- **R** : analyses statistiques et visualisations.
-- **MultiVarSel** : sélection de variables dans un cadre multivarié.
-- **Quarto** : rédaction du rapport et intégration du code et des résultats.
+- `Analyse_proteome_FH.qmd` : rapport Quarto contenant le code R, les analyses et les visualisations.
+- `Table_proteome_FH_all.csv` : jeu de données utilisé pour l’étude.
 
-## Contenu du dépôt
-
-- `Analyse_proteome_FH.qmd` : fichier Quarto original contenant le code R, la démarche d’analyse et les interprétations.
-- `.gitignore` : exclusion des données pédagogiques et de certains fichiers de résultats locaux.
-
-## Données et reproductibilité
-
-Le fichier `Table_proteome_FH_all.csv` a été **fourni par l’enseignant** dans le cadre du cours. Il n’est pas diffusé dans ce dépôt public, faute d’autorisation explicite de redistribution.
-
-Le fichier de résultats intermédiaires `Freqs_FH.rds` n’est pas non plus publié, dans l’attente d’une vérification des conditions de partage des résultats dérivés.
-
-Pour reproduire l’analyse, il faut disposer du jeu de données par une voie autorisée, installer les packages R nécessaires (dont `MultiVarSel`) et **adapter les chemins locaux** présents dans le fichier Quarto. L’exécution complète de cette version publique n’a pas été vérifiée indépendamment.
-
-## Travail en équipe et crédits
-
-Projet réalisé en équipe par **Adam Aabadli, Fatoumata Ndour et Myriam Abouda**.
-
-Le jeu de données et le cadre pédagogique ont été fournis par l’équipe enseignante. Ce dépôt ne revendique ni la création du package `MultiVarSel` ni celle du jeu de données d’origine.
-
-## Remarque
-
-Ce projet est présenté à des fins pédagogiques et de valorisation des compétences en **statistiques multivariées, sélection de variables et programmation R**.
+Le rapport peut être ouvert dans **RStudio** ou rendu avec **Quarto**, après installation des packages R nécessaires. Certains chemins locaux et fichiers de résultats intermédiaires peuvent nécessiter une adaptation pour relancer l’ensemble des calculs.
