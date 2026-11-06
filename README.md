@@ -26,9 +26,16 @@ Avec un seuil de fréquence de sélection de **0,93**, l’analyse retient **223
 
 **R · MultiVarSel · Quarto · ACP · Modélisation linéaire multivariée · Sélection de variables**
 
+## Consulter le rapport
+
+📊 **[Voir le rapport d’analyse et les visualisations (HTML)](Result.html)**
+
+Le fichier HTML présente les étapes de l’analyse, les graphiques et les résultats. Pour l’afficher dans un navigateur, télécharger `Result.html` puis l’ouvrir localement.
+
 ## Fichiers du projet
 
 - `Analyse_proteome_FH.qmd` : rapport Quarto contenant le code R, les analyses et les visualisations.
 - `Table_proteome_FH_all.csv` : jeu de données utilisé pour l’étude.
+- `Result.html` : version HTML du rapport, consultable sans exécuter le code R.
 
 Le rapport peut être ouvert dans **RStudio** ou rendu avec **Quarto**, après installation des packages R nécessaires. Certains chemins locaux et fichiers de résultats intermédiaires peuvent nécessiter une adaptation pour relancer l’ensemble des calculs.
