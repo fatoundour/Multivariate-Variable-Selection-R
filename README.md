@@ -1,10 +1,10 @@
-# Sélection de variables multivariée en R — Analyse protéomique
+# Sélection de variables multivariée en R - Analyse protéomique
 
 Projet réalisé en équipe dans le cadre du Master 2 à l’Université Paris Cité, pour le cours *Questions de sciences des données*.
 
 ## Présentation
 
-Ce projet étudie l’influence des conditions expérimentales — **température** et **stade d’imbibition** — sur l’abondance des protéines de graines fraîchement récoltées (FH).
+Ce projet étudie l’influence des conditions expérimentales - **température** et **stade d’imbibition** - sur l’abondance des protéines de graines fraîchement récoltées (FH).
 
 L’objectif est d’identifier les associations les plus pertinentes entre protéines et conditions expérimentales, à l’aide de méthodes de **statistique multivariée** et du package R **MultiVarSel**.
 
